@@ -1,15 +1,14 @@
-
 // HTTPD u-server for ESP8266, by David Guillen Fandos (david@davidgf.net)
 // Ideas borrowed from all over the internet :) Use and share, keep this notice!
 
-#include "mem.h"
-#include "osapi.h"
-#include "ets_sys.h"
-#include "osapi.h"
-#include "gpio.h"
-#include "os_type.h"
-#include "ip_addr.h"
-#include "espconn.h"
+#include <mem.h>
+#include <osapi.h>
+#include <ets_sys.h>
+#include <osapi.h>
+#include <gpio.h>
+#include <os_type.h>
+#include <ip_addr.h>
+#include <espconn.h>
 
 #include "httpd.h"
 
@@ -57,7 +56,8 @@ t_conn_state carray[MAX_OPEN_CONN];
 
 int ICACHE_FLASH_ATTR clookup(const struct espconn * conn) {
 	// Lookup for this connection in the carray
-	for (int i = 0; i < MAX_OPEN_CONN; i++) {
+	int i;
+	for (i = 0; i < MAX_OPEN_CONN; i++) {
 		if (carray[i].state != coEmpty &&
 		    memcmp(carray[i].remote_ip, conn->proto.tcp->remote_ip, 4) == 0 &&
 		    carray[i].remote_port == conn->proto.tcp->remote_port)
@@ -66,7 +66,7 @@ int ICACHE_FLASH_ATTR clookup(const struct espconn * conn) {
 	return -1;
 }
 
-static int ICACHE_FLASH_ATTR cheap_atoi(const char * s) {
+int ICACHE_FLASH_ATTR cheap_atoi(const char * s) {
 	int r = 0;
 	while (*s >= '0' && *s <= '9')
 		r = r * 10 + (*s++ - '0');
@@ -74,11 +74,12 @@ static int ICACHE_FLASH_ATTR cheap_atoi(const char * s) {
 }
 
 static int ICACHE_FLASH_ATTR get_field_d(const char * msg, int len, const char * hname) {
+	int i;
 	// Find something like "\r\n hname : [0-9]+ \r\n"
 	char buf[len + 1];
 	memset(buf, 0, len+1);
 
-	for (int i = 0; i < len; i++)
+	for (i = 0; i < len; i++)
 		buf[i] = tolower(msg[i]);
 
 	const char * start = buf;
@@ -194,9 +195,9 @@ static void ICACHE_FLASH_ATTR tcp_recv(struct espconn *conn, char *data, unsigne
 				rsize++;
 
 			if (rsize) {
-				const char * lineend = os_strstr(&carray[p].request[rsize], " ");
+				const char * lineend = (char*)os_strstr(&carray[p].request[rsize], " ");
 				unsigned psize = ((uintptr_t)lineend) - ((uintptr_t)carray[p].request) - rsize;
-				
+
 				const t_url_desc * desc = url_descriptors;
 				while (desc && desc->path) {
 					if (strlen(desc->path) == psize &&
@@ -240,7 +241,8 @@ static void ICACHE_FLASH_ATTR tcp_error(struct espconn *conn, sint8 err) {
 
 void ICACHE_FLASH_ATTR client_tcp_connect_cb(struct espconn *conn) {
 	// Store the connection in the array
-	for (int i = 0; i < MAX_OPEN_CONN; i++) {
+	int i;
+	for (i = 0; i < MAX_OPEN_CONN; i++) {
 		if (carray[i].state == coEmpty) {
 			// Clear state!
 			carray[i].state = coWaitHeader;
@@ -266,7 +268,8 @@ void ICACHE_FLASH_ATTR client_tcp_connect_cb(struct espconn *conn) {
 
 void ICACHE_FLASH_ATTR connection_housekeeping() {
 	// Check for Destroyed connections or connections that timed out!
-	for (int i = 0; i < MAX_OPEN_CONN; i++) {
+	int i;
+	for (i = 0; i < MAX_OPEN_CONN; i++) {
 		// Timeout!
 		if (carray[i].state != coEmpty && tick_counter > carray[i].keepalive + CTIMEOUT)
 			carray[i].state = coDestroy;
@@ -286,7 +289,8 @@ static volatile os_timer_t housekeeping_timer;
 
 void ICACHE_FLASH_ATTR httpd_start(int port, const t_url_desc * descriptors) {
 	// Inint internal stuff
-	for (int i = 0; i < MAX_OPEN_CONN; i++)
+	int i;
+	for (i = 0; i < MAX_OPEN_CONN; i++)
 		carray[i].state = coEmpty;
 
 	url_descriptors = descriptors;
@@ -314,13 +318,16 @@ void ICACHE_FLASH_ATTR httpd_stop() {
 #define unhexify(c) (((c) >= '0' && (c) <= '9') ? ((c) - '0') : (tolower(c) - 'a' + 10))
 
 void ICACHE_FLASH_ATTR url_unscape(char * s) {
-	for (int i = 0; i < strlen(s); i++) {
+	int i;
+	for (i = 0; i < strlen(s); i++) {
 		if (s[i] == '%' && i+2 < strlen(s)) {
 			// Unscape char
 			int code = (unhexify(s[i+1]) << 4) | (unhexify(s[i+2]));
 			s[i] = (char)code;
 			// Copy over!
 			memmove(&s[i+1], &s[i+3], strlen(s) - i - 3 + 1);
+		} else if (s[i] == '+') {
+			s[i] = ' ';
 		}
 	}
 }
@@ -328,10 +335,10 @@ void ICACHE_FLASH_ATTR url_unscape(char * s) {
 int ICACHE_FLASH_ATTR parse_form_s(const char * body, char * wb, const char * field) {
 	int flen = strlen(field);
 	while (body && *body != 0) {
-		const char * eq = os_strstr(body, "=");
+		const char * eq = (char*)os_strstr(body, "=");
 		if (!eq)
 			return 0;
-		const char * nextf = os_strstr(body, "&");
+		const char * nextf = (char*)os_strstr(body, "&");
 
 		int nlen = ((uintptr_t)eq) - ((uintptr_t)body);
 		if (nlen == flen && memcmp(body, field, flen) == 0) {
